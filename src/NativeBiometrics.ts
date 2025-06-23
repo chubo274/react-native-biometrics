@@ -46,7 +46,6 @@ export interface BiometricPermissionResult {
 
 export interface BiometricAuthOptions {
   otherwayWithPIN?: boolean;
-  textOtherway?: string;
 }
 
 export interface Spec extends TurboModule {
@@ -57,10 +56,12 @@ export interface Spec extends TurboModule {
   requestBiometricPermission(): Promise<BiometricPermissionResult>;
 
   // Authenticate using biometric
-  authenticate(
-    reason: string,
+  authenticateBiometric(
     options?: BiometricAuthOptions
   ): Promise<BiometricAuthResult>;
+
+  // Authenticate using device PIN/passcode only
+  authenticatePIN(): Promise<BiometricAuthResult>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('Biometrics');

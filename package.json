@@ -1,9 +1,10 @@
 {
-  "name": "react-native-biometrics",
-  "version": "0.1.0",
+  "name": "@boindahood/react-native-biometrics",
+  "version": "1.0.1",
   "description": "react native biometrics",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
+  "react-native": "./src/index.tsx",
   "exports": {
     ".": {
       "source": "./src/index.tsx",
@@ -38,6 +39,7 @@
     "lint": "eslint \"**/*.{js,ts,tsx}\"",
     "clean": "del-cli android/build example/android/build example/android/app/build example/ios/build lib",
     "prepare": "bob build",
+    "postinstall": "react-native setup-ios-permissions || true",
     "release": "release-it --only-version"
   },
   "keywords": [
@@ -152,6 +154,11 @@
     "name": "BiometricsSpec",
     "type": "modules",
     "jsSrcsDir": "src",
+    "ios": {
+      "modulesProvider": {
+        "NativeBiometrics": "BiometricsSpec"
+      }
+    },
     "android": {
       "javaPackageName": "com.biometrics"
     }

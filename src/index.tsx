@@ -57,16 +57,14 @@ export class ReactNativeBiometrics {
 
   /**
    * Authenticate using biometric
-   * @param reason - The reason for authentication to show to the user
    * @param options - Authentication options
    * @returns Promise<BiometricAuthResult>
    */
-  static async authenticate(
-    reason: string,
+  static async authenticateBiometric(
     options?: BiometricAuthOptions
   ): Promise<BiometricAuthResult> {
     try {
-      return await NativeBiometrics.authenticate(reason, options);
+      return await NativeBiometrics.authenticateBiometric(options);
     } catch (error) {
       return {
         success: false,
@@ -74,6 +72,31 @@ export class ReactNativeBiometrics {
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
       };
     }
+  }
+
+  /**
+   * Authenticate using device PIN/passcode only
+   * @returns Promise<BiometricAuthResult>
+   */
+  static async authenticatePIN(): Promise<BiometricAuthResult> {
+    try {
+      return await NativeBiometrics.authenticatePIN();
+    } catch (error) {
+      return {
+        success: false,
+        errorCode: BiometricErrorCode.BIOMETRIC_UNKNOWN_ERROR,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * @deprecated Use authenticateBiometric instead
+   */
+  static async authenticate(
+    options?: BiometricAuthOptions
+  ): Promise<BiometricAuthResult> {
+    return this.authenticateBiometric(options);
   }
 }
 
