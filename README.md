@@ -1,9 +1,9 @@
-# React Native Biometrics
+# @boindahood/react-native-biometrics
 
 A comprehensive React Native library for biometric authentication on iOS and Android platforms.
 
-[![npm version](https://badge.fury.io/js/react-native-biometrics.svg)](https://badge.fury.io/js/react-native-biometrics)
-[![npm downloads](https://img.shields.io/npm/dt/react-native-biometrics.svg)](https://www.npmjs.com/package/react-native-biometrics)
+[![npm version](https://badge.fury.io/js/@boindahood%2Freact-native-biometrics.svg)](https://badge.fury.io/js/@boindahood%2Freact-native-biometrics)
+[![npm downloads](https://img.shields.io/npm/dt/@boindahood/react-native-biometrics.svg)](https://www.npmjs.com/package/@boindahood/react-native-biometrics)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
@@ -12,17 +12,24 @@ A comprehensive React Native library for biometric authentication on iOS and And
 - 🛡️ **Strong Security**: Uses BIOMETRIC_STRONG authenticators on Android for enhanced security
 - 📱 **Cross-Platform**: Works seamlessly on both iOS and Android
 - 🎯 **TypeScript Support**: Full TypeScript definitions included
-- 🔄 **Flexible Fallback**: Support for device PIN/passcode fallback
+- 🔄 **Flexible Authentication**: Separate methods for biometric-only and PIN-only authentication
 - 📊 **Comprehensive Status**: Detailed availability and permission status
 - 🚫 **Lockout Detection**: Detects and reports biometric lockout status
 - 🎨 **Customizable UI**: Custom text for fallback buttons
+- 📦 **TurboModule Ready**: Built with modern React Native architecture
+
+## Screenshots
+
+| iOS Authentication | iOS "Another way" fallback | Android "Another way" fallback |
+|:---:|:---:|:---:|
+| ![iOS Authentication](https://raw.githubusercontent.com/boindahood/react-native-biometrics/main/assets/Ios-authentication.PNG) | ![iOS Fallback](https://raw.githubusercontent.com/boindahood/react-native-biometrics/main/assets/Ios-another-way.PNG) | ![Android Authentication](https://raw.githubusercontent.com/boindahood/react-native-biometrics/main/assets/android.png) |
 
 ## Installation
 
 ```bash
-npm install react-native-biometrics
+npm install @boindahood/react-native-biometrics
 # or
-yarn add react-native-biometrics
+yarn add @boindahood/react-native-biometrics
 ```
 
 ### iOS Setup
@@ -64,7 +71,7 @@ android {
 import ReactNativeBiometrics, { 
   BiometricType, 
   BiometricErrorCode 
-} from 'react-native-biometrics';
+} from '@boindahood/react-native-biometrics';
 
 // Check if biometric authentication is available
 const checkAvailability = async () => {
@@ -92,9 +99,9 @@ const requestPermission = async () => {
 
 // Authenticate with biometrics
 const authenticate = async () => {
-  const result = await ReactNativeBiometrics.authenticate(
-    'Please authenticate to access your account'
-  );
+  const result = await ReactNativeBiometrics.authenticateBiometric({
+    otherwayWithPIN: false,
+  });
   
   if (result.success) {
     console.log('Authentication successful');
@@ -112,12 +119,10 @@ const authenticate = async () => {
 
 ```typescript
 const authenticateWithPIN = async () => {
-  const result = await ReactNativeBiometrics.authenticate(
-    'Authenticate to continue',
-    {
-      otherwayWithPIN: true, // Allow device PIN as fallback
-    }
-  );
+  const result = await ReactNativeBiometrics.authenticateBiometric({
+    otherwayWithPIN: true, // Allow device PIN as fallback
+    // otherwayWithPIN: false, // Allow fallback "Another way" button, and you can use fallback custom
+  });
   
   if (result.success) {
     console.log('Authenticated successfully');
@@ -125,21 +130,14 @@ const authenticateWithPIN = async () => {
 };
 ```
 
-#### Custom Fallback Button
+#### PIN-only Authentication
 
 ```typescript
-const authenticateWithCustomFallback = async () => {
-  const result = await ReactNativeBiometrics.authenticate(
-    'Authenticate to continue',
-    {
-      otherwayWithPIN: false, // Don't use PIN fallback
-      textOtherway: 'Use Password', // Custom button text
-    }
-  );
+const authenticateWithPINOnly = async () => {
+  const result = await ReactNativeBiometrics.authenticatePIN();
   
-  if (result.pressedOtherway) {
-    // Handle custom fallback action
-    console.log('User wants to use password');
+  if (result.success) {
+    console.log('PIN authentication successful');
   }
 };
 ```
@@ -159,7 +157,10 @@ interface BiometricAvailability {
   isAvailable: boolean;        // Device supports and has biometrics enrolled
   allowAccess: boolean;        // App has permission to use biometrics
   biometricType: BiometricType; // Primary biometric type available
-  isLockout: boolean;          // Device is locked out due to too many attempts
+  // on IOS: Device is locked out due to too many attempts only return isLockout = true,
+  // on Android: not return this. only when Authenticate can be return lockout by error code: BIOMETRIC_LOCKOUT_PERMANENT || BIOMETRIC_LOCKOUT
+  // if lockout. on IOS can't do nothing just wait. on Android you can wait for normally is 30s, if want to unlock sooner pls make user include PIN code or use authenticatePIN
+  isLockout: boolean;          
   errorCode?: BiometricErrorCode;
   errorMessage?: string;
 }
@@ -179,12 +180,11 @@ interface BiometricPermissionResult {
 }
 ```
 
-#### `authenticate(reason, options?)`
+#### `authenticateBiometric(options?)`
 
 Performs biometric authentication.
 
 **Parameters**:
-- `reason`: string - Message shown to user during authentication
 - `options?`: BiometricAuthOptions - Authentication options
 
 **Returns**: `Promise<BiometricAuthResult>`
@@ -192,7 +192,6 @@ Performs biometric authentication.
 ```typescript
 interface BiometricAuthOptions {
   otherwayWithPIN?: boolean;  // Allow device PIN/passcode fallback
-  textOtherway?: string;      // Custom text for fallback button
 }
 
 interface BiometricAuthResult {
@@ -202,6 +201,14 @@ interface BiometricAuthResult {
   errorMessage?: string;
 }
 ```
+
+#### `authenticatePIN()`
+
+Performs authentication using device PIN/passcode only.
+on Android working well.
+on IOS it the same with authenticateBiometric({otherwayWithPIN: true})
+
+**Returns**: `Promise<BiometricAuthResult>`
 
 ### Types
 
@@ -239,7 +246,7 @@ enum BiometricErrorCode {
 The library provides comprehensive error handling with standardized error codes across platforms:
 
 ```typescript
-const result = await ReactNativeBiometrics.authenticate('Authenticate');
+const result = await ReactNativeBiometrics.authenticateBiometric();
 
 if (!result.success) {
   switch (result.errorCode) {
@@ -285,7 +292,12 @@ The library includes a comprehensive example app demonstrating all features. To 
 ```bash
 cd example
 yarn install
-yarn ios    # or yarn android
+
+# For iOS
+yarn ios
+
+# For Android  
+yarn android
 ```
 
 ## Requirements
@@ -304,9 +316,9 @@ MIT
 
 ## Support
 
-- 📖 [Documentation](https://github.com/chubo274/react-native-biometrics#readme)
-- 🐛 [Bug Reports](https://github.com/chubo274/react-native-biometrics/issues)
-- 💡 [Feature Requests](https://github.com/chubo274/react-native-biometrics/issues)
+- 📖 [Documentation](https://github.com/boindahood/react-native-biometrics#readme)
+- 🐛 [Bug Reports](https://github.com/boindahood/react-native-biometrics/issues)
+- 💡 [Feature Requests](https://github.com/boindahood/react-native-biometrics/issues)
 
 ---
 
