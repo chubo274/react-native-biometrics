@@ -22,7 +22,7 @@ A comprehensive React Native library for biometric authentication on iOS and And
 
 | iOS Authentication | iOS "Another way" fallback | Android "Another way" fallback |
 |:---:|:---:|:---:|
-| ![iOS Authentication](https://raw.githubusercontent.com/boindahood/react-native-biometrics/main/assets/Ios-authentication.PNG) | ![iOS Fallback](https://raw.githubusercontent.com/boindahood/react-native-biometrics/main/assets/Ios-another-way.PNG) | ![Android Authentication](https://raw.githubusercontent.com/boindahood/react-native-biometrics/main/assets/android.png) |
+| ![iOS Authentication](https://raw.githubusercontent.com/chubo274/react-native-biometrics/main/assets/Ios-authentication.PNG) | ![iOS Fallback](https://raw.githubusercontent.com/chubo274/react-native-biometrics/main/assets/Ios-another-way.PNG) | ![Android Authentication](https://raw.githubusercontent.com/chubo274/react-native-biometrics/main/assets/android.png) |
 
 ## Installation
 
@@ -316,9 +316,9 @@ MIT
 
 ## Support
 
-- 📖 [Documentation](https://github.com/boindahood/react-native-biometrics#readme)
-- 🐛 [Bug Reports](https://github.com/boindahood/react-native-biometrics/issues)
-- 💡 [Feature Requests](https://github.com/boindahood/react-native-biometrics/issues)
+- 📖 [Documentation](https://github.com/chubo274/react-native-biometrics#readme)
+- 🐛 [Bug Reports](https://github.com/chubo274/react-native-biometrics/issues)
+- 💡 [Feature Requests](https://github.com/chubo274/react-native-biometrics/issues)
 
 ---
 
