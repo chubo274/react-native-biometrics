@@ -1511,13 +1511,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@boindahood/react-native-biometrics@file:../boindahood-react-native-biometrics-1.0.1.tgz::locator=react-native-biometrics-example%40workspace%3Aexample":
-  version: 1.0.1
-  resolution: "@boindahood/react-native-biometrics@file:../boindahood-react-native-biometrics-1.0.1.tgz::locator=react-native-biometrics-example%40workspace%3Aexample"
+"@boindahood/react-native-biometrics@file:../boindahood-react-native-biometrics-1.0.3.tgz::locator=react-native-biometrics-example%40workspace%3Aexample":
+  version: 1.0.3
+  resolution: "@boindahood/react-native-biometrics@file:../boindahood-react-native-biometrics-1.0.3.tgz::locator=react-native-biometrics-example%40workspace%3Aexample"
   peerDependencies:
     react: "*"
     react-native: "*"
-  checksum: 0ae3f132ebbe4d2cad19de1b635edcdf83dfafedaf35c89b89ff577c708598ae2aaaea6d139868214f1a9cda816c90847273bf21011a9c0e25915cc5db0a70ad
+  checksum: 7ba70c7e240f5efcf72ff51ba96061bbb17152134425b5e66836ae44762862848f9adf5a81956599252a9402b9e3517792be8fe0bff6cc46735f337f634fdbc6
   languageName: node
   linkType: hard
 
@@ -10389,7 +10389,7 @@ __metadata:
     "@babel/core": ^7.25.2
     "@babel/preset-env": ^7.25.3
     "@babel/runtime": ^7.25.0
-    "@boindahood/react-native-biometrics": ../boindahood-react-native-biometrics-1.0.1.tgz
+    "@boindahood/react-native-biometrics": ../boindahood-react-native-biometrics-1.0.3.tgz
     "@react-native-community/cli": 18.0.0
     "@react-native-community/cli-platform-android": 18.0.0
     "@react-native-community/cli-platform-ios": 18.0.0

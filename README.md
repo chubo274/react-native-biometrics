@@ -1,6 +1,6 @@
 # @boindahood/react-native-biometrics
 
-A comprehensive React Native library for biometric authentication on iOS and Android platforms.
+React Native biometric authentication with private key management. Create biometric-protected private keys and digital signatures using native iOS Keychain and Android Keystore.
 
 [![npm version](https://badge.fury.io/js/@boindahood%2Freact-native-biometrics.svg)](https://badge.fury.io/js/@boindahood%2Freact-native-biometrics)
 [![npm downloads](https://img.shields.io/npm/dt/@boindahood/react-native-biometrics.svg)](https://www.npmjs.com/package/@boindahood/react-native-biometrics)
@@ -8,15 +8,30 @@ A comprehensive React Native library for biometric authentication on iOS and And
 
 ## Features
 
-- 🔐 **Biometric Authentication**: Support for fingerprint, Face ID, Touch ID, and iris recognition
-- 🛡️ **Strong Security**: Uses BIOMETRIC_STRONG authenticators on Android for enhanced security
-- 📱 **Cross-Platform**: Works seamlessly on both iOS and Android
-- 🎯 **TypeScript Support**: Full TypeScript definitions included
-- 🔄 **Flexible Authentication**: Separate methods for biometric-only and PIN-only authentication
-- 📊 **Comprehensive Status**: Detailed availability and permission status
-- 🚫 **Lockout Detection**: Detects and reports biometric lockout status
-- 🎨 **Customizable UI**: Custom text for fallback buttons
-- 📦 **TurboModule Ready**: Built with modern React Native architecture
+✅ **Biometric Authentication** - Face ID, Touch ID, Fingerprint, Iris recognition  
+✅ **Private Key Management** - Hardware-protected private keys with biometric access  
+✅ **Digital Signatures** - Create cryptographic signatures with biometric authentication  
+✅ **Cross Platform** - iOS (Keychain) and Android (Keystore) native storage  
+✅ **TypeScript** - Full type definitions included  
+✅ **TurboModule** - Built for React Native's new architecture
+
+## 🎉 What's New in v1.0.4
+
+### Private Key Management
+- **Hardware-protected keys**: Create and manage biometric-protected private keys
+- **Digital signatures**: Sign data with biometric authentication: `createSignature`
+- **Cross-platform security**: Secure Enclave (iOS) + Android Keystore support
+- **Key lifecycle management**: Create, check existence, and delete keys: `createBiometricKey`, `biometricKeyExists`, `deleteBiometricKey`
+
+### Breaking Changes
+- `enum` `BiometricOtherwayMode: 'hide' | 'callback' | 'PIN'`
+- `otherwayWithPIN: boolean` → `otherwayWith: BiometricOtherwayMode`
+- **New `otherwayWith` modes**: Replaced `otherwayWithPIN: boolean` with flexible mode system
+  - `'hide'`: **iOS only** - Biometric-only authentication, no fallback button  
+  - `'callback'`: Custom fallback button with `pressedOtherway` callback
+  - `'PIN'`: **Default mode** - Native device PIN/passcode authentication
+
+![usage-private-key-flow](https://raw.githubusercontent.com/chubo274/react-native-biometrics/main/assets/usage-private-key-flow.png)
 
 ## Screenshots
 
@@ -38,7 +53,7 @@ yarn add @boindahood/react-native-biometrics
 
 ```xml
 <key>NSFaceIDUsageDescription</key>
-<string>This app uses Face ID for secure authentication</string>
+<string>This app uses Face/Touch ID for secure authentication</string>
 ```
 
 2. The library automatically links with LocalAuthentication framework.
@@ -65,225 +80,423 @@ android {
 
 ## Usage
 
-### Basic Usage
+### Basic Authentication
 
 ```typescript
-import ReactNativeBiometrics, { 
-  BiometricType, 
-  BiometricErrorCode 
-} from '@boindahood/react-native-biometrics';
+import ReactNativeBiometrics, { BiometricOtherwayModem, BiometricType, BiometricErrorCode } from '@boindahood/react-native-biometrics';
 
 // Check if biometric authentication is available
-const checkAvailability = async () => {
-  const result = await ReactNativeBiometrics.checkBiometricAvailability();
-  
-  if (result.isAvailable) {
-    console.log(`Biometric type: ${result.biometricType}`);
-    console.log(`Allow access: ${result.allowAccess}`);
-    console.log(`Is locked out: ${result.isLockout}`);
-  } else {
-    console.log(`Error: ${result.errorMessage}`);
-  }
-};
+const result = await ReactNativeBiometrics.checkBiometricAvailability();
 
-// Request biometric permission (Android)
-const requestPermission = async () => {
-  const result = await ReactNativeBiometrics.requestBiometricPermission();
-  
-  if (result.success) {
-    console.log('Permission granted');
-  } else {
-    console.log(`Permission denied: ${result.errorMessage}`);
-  }
-};
-
-// Authenticate with biometrics
-const authenticate = async () => {
-  const result = await ReactNativeBiometrics.authenticateBiometric({
-    otherwayWithPIN: false,
+if (result.isAvailable) {
+  // Authenticate with custom prompt
+  const authResult = await ReactNativeBiometrics.authenticateBiometric({
+    titlePrompt: 'Authenticate',
+    otherwayWith: BiometricOtherwayMode.PIN
   });
   
-  if (result.success) {
+  if (authResult.success) {
     console.log('Authentication successful');
-  } else if (result.pressedOtherway) {
-    console.log('User pressed other way button');
-  } else {
-    console.log(`Authentication failed: ${result.errorMessage}`);
+  } else if (authResult.pressedOtherway) {
+    console.log('User chose PIN authentication');
   }
-};
+}
 ```
 
-### Advanced Usage
-
-#### Authentication with PIN Fallback
+### Private Key Management
 
 ```typescript
-const authenticateWithPIN = async () => {
-  const result = await ReactNativeBiometrics.authenticateBiometric({
-    otherwayWithPIN: true, // Allow device PIN as fallback
-    // otherwayWithPIN: false, // Allow fallback "Another way" button, and you can use fallback custom
+// Create a biometric-protected private key
+const createResult = await ReactNativeBiometrics.createBiometricKey();
+
+if (createResult.success) {
+  // Create a digital signature with custom prompt
+  const signResult = await ReactNativeBiometrics.createSignature('data to sign', {
+    titlePrompt: 'Sign Transaction',
+    otherwayWith: BiometricOtherwayMode.CALLBACK,
+    otherwayText: 'Use Password'
   });
   
-  if (result.success) {
-    console.log('Authenticated successfully');
+  if (signResult.success && signResult.signature) {
+    console.log('Signature:', signResult.signature);
+  } else if (signResult.pressedOtherway) {
+    console.log('User wants to use password instead');
   }
-};
-```
-
-#### PIN-only Authentication
-
-```typescript
-const authenticateWithPINOnly = async () => {
-  const result = await ReactNativeBiometrics.authenticatePIN();
-  
-  if (result.success) {
-    console.log('PIN authentication successful');
-  }
-};
+}
 ```
 
 ## API Reference
 
-### Methods
-
-#### `checkBiometricAvailability()`
+### checkBiometricAvailability()
 
 Checks if biometric authentication is available on the device.
 
-**Returns**: `Promise<BiometricAvailability>`
+**Returns:** `Promise<BiometricAvailability>`
 
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| isAvailable | boolean | Device supports and has biometrics enrolled | ✔ | ✔ |
+| allowAccess | boolean | App has permission to use biometrics | ✔ | ✔ |
+| biometricType | BiometricType | Primary biometric type available | ✔ | ✔ |
+| errorCode | BiometricErrorCode? | Error code if not available | ✔ | ✔ |
+| errorMessage | string? | Error message if not available | ✔ | ✔ |
+
+Example:
 ```typescript
-interface BiometricAvailability {
-  isAvailable: boolean;        // Device supports and has biometrics enrolled
-  allowAccess: boolean;        // App has permission to use biometrics
-  biometricType: BiometricType; // Primary biometric type available
-  // on IOS: Device is locked out due to too many attempts only return isLockout = true,
-  // on Android: not return this. only when Authenticate can be return lockout by error code: BIOMETRIC_LOCKOUT_PERMANENT || BIOMETRIC_LOCKOUT
-  // if lockout. on IOS can't do nothing just wait. on Android you can wait for normally is 30s, if want to unlock sooner pls make user include PIN code or use authenticatePIN
-  isLockout: boolean;          
-  errorCode?: BiometricErrorCode;
-  errorMessage?: string;
+const result = await ReactNativeBiometrics.checkBiometricAvailability();
+
+if (result.isAvailable) {
+  console.log(`Biometric type: ${result.biometricType}`);
+} else {
+  console.log(`Error: ${result.errorMessage}`);
 }
 ```
 
-#### `requestBiometricPermission()`
+### requestBiometricPermission()
 
-Requests permission to use biometric authentication (Android only).
+Requests permission to use biometric authentication.
 
-**Returns**: `Promise<BiometricPermissionResult>`
+**Note:** 
+- **iOS**: Triggers biometric permission prompt - user must grant access to use Face ID/Touch ID
+- **Android**: Always returns `success: true` (permissions granted via manifest)
 
+**Returns:** `Promise<BiometricPermissionResult>`
+
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| success | boolean | Permission granted by user (iOS) or automatically granted (Android) | ✔ | ✔ |
+| errorCode | BiometricErrorCode? | Error code if permission denied or hardware issues | ✔ | ✔ |
+| errorMessage | string? | Error message if permission denied or hardware issues | ✔ | ✔ |
+
+Example:
 ```typescript
-interface BiometricPermissionResult {
-  success: boolean;
-  errorCode?: BiometricErrorCode;
-  errorMessage?: string;
+const result = await ReactNativeBiometrics.requestBiometricPermission();
+
+if (result.success) {
+  console.log('Permission granted');
 }
 ```
 
-#### `authenticateBiometric(options?)`
+### authenticateBiometric(options?)
 
-Performs biometric authentication.
+Performs biometric authentication with customizable prompts and fallback options.
 
-**Parameters**:
-- `options?`: BiometricAuthOptions - Authentication options
+**Options Object:**
 
-**Returns**: `Promise<BiometricAuthResult>`
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| titlePrompt | string? | Main authentication prompt title | ✔ | ✔ |
+| otherwayWith | 'hide' \| 'callback' \| 'PIN'? | Fallback button behavior (default: 'PIN') | ✔ | ✔ |
+| otherwayText | string? | Custom fallback button text (required on Android, fallback: "Another way") | ✔ | ✔ |
 
+**Fallback Options:**
+- `'hide'`: **iOS only** - No fallback button, biometric-only authentication (Android defaults to PIN)
+- `'callback'`: Show fallback button with custom text, returns `pressedOtherway: true` when pressed
+- `'PIN'` (default): Allow device PIN/passcode as authentication alternative
+
+**Result Object:**
+
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| success | boolean | Authentication successful | ✔ | ✔ |
+| pressedOtherway | boolean? | User pressed fallback button (when otherwayWith='callback') | ✔ | ✔ |
+| errorCode | BiometricErrorCode? | Error code if authentication failed | ✔ | ✔ |
+| errorMessage | string? | Error message if authentication failed | ✔ | ✔ |
+
+Example:
 ```typescript
-interface BiometricAuthOptions {
-  otherwayWithPIN?: boolean;  // Allow device PIN/passcode fallback
-}
+// Simple biometric authentication (defaults to PIN fallback)
+const result = await ReactNativeBiometrics.authenticateBiometric({
+  titlePrompt: 'Authenticate'
+});
 
-interface BiometricAuthResult {
-  success: boolean;
-  pressedOtherway?: boolean;  // User pressed fallback button
-  errorCode?: BiometricErrorCode;
-  errorMessage?: string;
+// Explicitly with PIN fallback
+const result = await ReactNativeBiometrics.authenticateBiometric({
+  titlePrompt: 'Secure Login',
+  otherwayWith: BiometricOtherwayMode.PIN
+});
+
+// With custom callback button
+const result = await ReactNativeBiometrics.authenticateBiometric({
+  titlePrompt: 'Biometric Auth',
+  otherwayWith: BiometricOtherwayMode.CALLBACK,
+  otherwayText: 'Use Password'
+});
+
+if (result.success) {
+  console.log('Authentication successful');
+} else if (result.pressedOtherway) {
+  console.log('User chose alternative authentication');
 }
 ```
 
-#### `authenticatePIN()`
+### authenticatePIN()
 
 Performs authentication using device PIN/passcode only.
-on Android working well.
-on IOS it the same with authenticateBiometric({otherwayWithPIN: true})
+- **Android**:  working normally, it just open prompt PIN only.
+- **iOS**: open prompt full with Biometric + PIN flow (via manifest)
 
-**Returns**: `Promise<BiometricAuthResult>`
+**Returns:** `Promise<BiometricAuthResult>`
 
-### Types
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| success | boolean | Authentication successful | ✔ | ✔ |
+| errorCode | BiometricErrorCode? | Error code if authentication failed | ✔ | ✔ |
+| errorMessage | string? | Error message if authentication failed | ✔ | ✔ |
 
-#### `BiometricType`
-
+Example:
 ```typescript
-enum BiometricType {
-  FINGERPRINT = 'fingerprint',
-  FACE_ID = 'faceId',
-  TOUCH_ID = 'touchId',
-  IRIS = 'iris',
-  NONE = 'none',
+const result = await ReactNativeBiometrics.authenticatePIN();
+
+if (result.success) {
+  console.log('PIN authentication successful');
 }
 ```
 
-#### `BiometricErrorCode`
+### createBiometricKey()
 
+Creates a new biometric-protected private key. Only one key per app is allowed for security.
+
+**Returns:** `Promise<BiometricKeyResult>`
+
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| success | boolean | Key created successfully | ✔ | ✔ |
+| errorCode | BiometricErrorCode? | Error code if creation failed (e.g., BIOMETRIC_KEY_EXISTS) | ✔ | ✔ |
+| errorMessage | string? | Error message if creation failed | ✔ | ✔ |
+
+Example:
 ```typescript
-enum BiometricErrorCode {
-  BIOMETRIC_NOT_AVAILABLE = 'BIOMETRIC_NOT_AVAILABLE',
-  BIOMETRIC_NOT_ENROLLED = 'BIOMETRIC_NOT_ENROLLED',
-  BIOMETRIC_PERMISSION_DENIED = 'BIOMETRIC_PERMISSION_DENIED',
-  BIOMETRIC_LOCKOUT = 'BIOMETRIC_LOCKOUT',
-  BIOMETRIC_LOCKOUT_PERMANENT = 'BIOMETRIC_LOCKOUT_PERMANENT',
-  BIOMETRIC_AUTH_FAILED = 'BIOMETRIC_AUTH_FAILED',
-  BIOMETRIC_USER_CANCEL = 'BIOMETRIC_USER_CANCEL',
-  BIOMETRIC_SYSTEM_CANCEL = 'BIOMETRIC_SYSTEM_CANCEL',
-  BIOMETRIC_PRESSED_OTHER_WAY = 'BIOMETRIC_PRESSED_OTHER_WAY',
-  BIOMETRIC_UNKNOWN_ERROR = 'BIOMETRIC_UNKNOWN_ERROR',
+const result = await ReactNativeBiometrics.createBiometricKey();
+
+if (result.success) {
+  console.log('Biometric key created successfully');
+} else if (result.errorCode === 'BIOMETRIC_KEY_EXISTS') {
+  console.log('Key already exists');
+}
+```
+
+### biometricKeyExists()
+
+Checks if a biometric-protected private key exists.
+
+**Returns:** `Promise<BiometricKeyExistsResult>`
+
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| exists | boolean | Key exists in keystore | ✔ | ✔ |
+| errorCode | BiometricErrorCode? | Error code if check failed | ✔ | ✔ |
+| errorMessage | string? | Error message if check failed | ✔ | ✔ |
+
+Example:
+```typescript
+const result = await ReactNativeBiometrics.biometricKeyExists();
+
+if (result.exists) {
+  console.log('Biometric key exists');
+} else {
+  console.log('No biometric key found');
+}
+```
+
+### deleteBiometricKey()
+
+Deletes the biometric-protected private key.
+
+**Returns:** `Promise<BiometricKeyResult>`
+
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| success | boolean | Key deleted successfully | ✔ | ✔ |
+| errorCode | BiometricErrorCode? | Error code if deletion failed | ✔ | ✔ |
+| errorMessage | string? | Error message if deletion failed | ✔ | ✔ |
+
+Example:
+```typescript
+const result = await ReactNativeBiometrics.deleteBiometricKey();
+
+if (result.success) {
+  console.log('Biometric key deleted successfully');
+}
+```
+
+### createSignature(payload, options?)
+
+Creates a digital signature using the biometric-protected private key. Requires biometric authentication with customizable prompts.
+
+**IOS:** options not working for this case, SecKey of iphone will automatic handle this flow. We cant make any impact
+
+**Parameters:**
+
+| Parameter | Type | Description |
+|:----------|:-----|:------------|
+| payload | string | The data to sign |
+| options | BiometricAuthOptions? | Authentication options for prompt customization |
+
+**Options Object:** (Same as authenticateBiometric)
+
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| titlePrompt | string? | Main authentication prompt title | ✖ | ✔ |
+| otherwayWith | 'hide' \| 'callback' \| 'PIN'? | Fallback button behavior (default: 'PIN') | ✖ | ✔ |
+| otherwayText | string? | Custom fallback button text (required on Android, fallback: "Another way") | ✖ | ✔ |
+
+**Returns:** `Promise<BiometricSignatureResult>`
+
+| Property | Type | Description | iOS | Android |
+|:---------|:-----|:------------|:---:|:-------:|
+| success | boolean | Signature created successfully | ✔ | ✔ |
+| signature | string? | Base64 encoded signature | ✔ | ✔ |
+| pressedOtherway | boolean? | User pressed fallback button (when otherwayWith='callback') | ✔ | ✔ |
+| errorCode | BiometricErrorCode? | Error code if signature creation failed | ✔ | ✔ |
+| errorMessage | string? | Error message if signature creation failed | ✔ | ✔ |
+
+Example:
+```typescript
+// Basic signature creation (defaults to PIN fallback)
+const result = await ReactNativeBiometrics.createSignature('data to sign');
+
+// Explicitly with PIN fallback
+const result = await ReactNativeBiometrics.createSignature('data to sign', {
+  titlePrompt: 'Sign Transaction',
+  otherwayWith: BiometricOtherwayMode.PIN
+});
+
+if (result.success && result.signature) {
+  console.log('Signature:', result.signature);
+  // Use the signature for authentication or verification
+} else if (result.pressedOtherway) {
+  console.log('User chose alternative authentication');
+}
+```
+
+## Biometric Types
+
+| Type | Platform | Description |
+|:-----|:---------|:------------|
+| `touchId` | iOS | Touch ID fingerprint sensor |
+| `faceId` | iOS/Android | Face ID facial recognition |
+| `fingerprint` | Android | Fingerprint sensor |
+| `iris` | Android | Iris recognition sensor |
+
+Example:
+```typescript
+import { BiometricType } from '@boindahood/react-native-biometrics'
+
+const { biometricType } = await ReactNativeBiometrics.checkBiometricAvailability()
+
+switch (biometricType) {
+  case BiometricType.TOUCH_ID:
+    console.log('Touch ID available')
+    break
+  case BiometricType.FACE_ID:
+    console.log('Face ID available')
+    break
+  case BiometricType.FINGERPRINT:
+    console.log('Fingerprint available')
+    break
+  case BiometricType.IRIS:
+    console.log('Iris recognition available')
+    break
+  default:
+    console.log('No biometrics available')
 }
 ```
 
 ## Error Handling
 
-The library provides comprehensive error handling with standardized error codes across platforms:
+The library provides comprehensive error handling with standardized error codes:
 
+| Error Code | Description | iOS | Android |
+|:-----------|:------------|:---:|:-------:|
+| BIOMETRIC_NOT_AVAILABLE | Biometric hardware not available | ✔ | ✔ |
+| BIOMETRIC_NOT_ENROLLED | No biometric credentials enrolled | ✔ | ✔ |
+| BIOMETRIC_PERMISSION_DENIED | App doesn't have biometric permission | ✔ | ✔ |
+| BIOMETRIC_LOCKOUT | Too many failed attempts, temporarily locked | ✔ | ✔ |
+| BIOMETRIC_LOCKOUT_PERMANENT | Permanently locked, requires device unlock | ✔ | ✔ |
+| BIOMETRIC_AUTH_FAILED | Authentication failed | ✔ | ✔ |
+| BIOMETRIC_USER_CANCEL | User canceled authentication | ✔ | ✔ |
+| BIOMETRIC_SYSTEM_CANCEL | System canceled authentication | ✔ | ✔ |
+| BIOMETRIC_PRESSED_OTHER_WAY | User pressed fallback button | ✔ | ✔ |
+| BIOMETRIC_KEY_EXISTS | Biometric key already exists | ✔ | ✔ |
+| BIOMETRIC_KEY_NOT_FOUND | Biometric key not found | ✔ | ✔ |
+| BIOMETRIC_UNKNOWN_ERROR | Unknown error occurred | ✔ | ✔ |
+
+Example:
 ```typescript
-const result = await ReactNativeBiometrics.authenticateBiometric();
+import { BiometricErrorCode, BiometricOtherwayMode } from '@boindahood/react-native-biometrics'
+
+const result = await ReactNativeBiometrics.authenticateBiometric({
+  titlePrompt: 'Authenticate',
+  otherwayWith: BiometricOtherwayMode.CALLBACK,
+  otherwayText: 'Use Password'
+})
 
 if (!result.success) {
   switch (result.errorCode) {
     case BiometricErrorCode.BIOMETRIC_NOT_AVAILABLE:
-      console.log('Biometric hardware not available');
-      break;
+      console.log('Biometric hardware not available')
+      break
     case BiometricErrorCode.BIOMETRIC_NOT_ENROLLED:
-      console.log('No biometric credentials enrolled');
-      break;
+      console.log('No biometric credentials enrolled')
+      break
     case BiometricErrorCode.BIOMETRIC_LOCKOUT:
-      console.log('Too many failed attempts, try again later');
-      break;
+      console.log('Too many failed attempts, try again later')
+      break
     case BiometricErrorCode.BIOMETRIC_USER_CANCEL:
-      console.log('User canceled authentication');
-      break;
+      console.log('User canceled authentication')
+      break
     case BiometricErrorCode.BIOMETRIC_PRESSED_OTHER_WAY:
-      console.log('User chose alternative authentication');
-      break;
+      console.log('User pressed fallback button')
+      // Handle custom authentication flow
+      break
     // Handle other error codes...
   }
+} else if (result.pressedOtherway) {
+  console.log('User wants to use alternative authentication')
+  // Handle fallback authentication
 }
 ```
 
 ## Platform Differences
 
 ### iOS
-- Uses Local Authentication framework
+- Uses Local Authentication framework with Keychain Services
 - Face ID and Touch ID support
-- No explicit permission required
-- Supports device passcode fallback
+- **Requires user permission** - first biometric access triggers system permission prompt
+- Supports device passcode fallback via `otherwayWith: 'PIN'`
+- Private keys stored in Secure Enclave when available
+- **Prompt customization**: `titlePrompt` works for all authentication methods
+- **createSignature**: iOS automatically handles biometric prompt, options mainly for consistency
 
 ### Android
-- Uses AndroidX Biometric library
-- BIOMETRIC_STRONG authenticators only (enhanced security)
-- Requires USE_BIOMETRIC permission
+- Uses AndroidX Biometric library with Android Keystore
+- authenticate simple use BIOMETRIC_WEAK prefer: finger > face > iris (avoid BIOMETRIC_LOCKOUT_PERMANENT when user input wrong too many)
+- authenticate for createSignature use BIOMETRIC_STRONG
+- **Permissions granted via manifest** - no runtime permission needed
 - Supports fingerprint, face, and iris recognition
-- Supports device PIN/pattern/password fallback
+- Supports device PIN/pattern/password fallback via `otherwayWith: 'PIN'`
+- Private keys stored in hardware-backed Android Keystore
+- **Prompt customization**: Full support for all `BiometricAuthOptions` properties
+- **Fallback behavior**: 
+  - `'hide'`: Biometric-only, no fallback button
+  - `'callback'`: Custom fallback button, returns `pressedOtherway: true`
+  - `'PIN'`: Native PIN/pattern/password fallback option
+
+### Lockout Detection
+
+**Important:** Both platforms can only reliably detect biometric lockout status during authentication attempts. The lockout information is provided through error codes:
+
+- `BIOMETRIC_LOCKOUT` - Temporary lockout (30 seconds on Android, varies on iOS)
+- `BIOMETRIC_LOCKOUT_PERMANENT` - Permanent lockout, requires device unlock
+
+To handle lockout, catch these error codes during authentication and guide users accordingly.
+
+## Requirements
+
+- React Native >= 0.70
+- iOS >= 12.0
+- Android API >= 23
 
 ## Example App
 
@@ -299,12 +512,6 @@ yarn ios
 # For Android  
 yarn android
 ```
-
-## Requirements
-
-- React Native >= 0.70
-- iOS >= 12.0
-- Android API >= 23
 
 ## Contributing
 
