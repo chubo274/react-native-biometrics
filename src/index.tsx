@@ -3,16 +3,23 @@ import NativeBiometrics, {
   type BiometricAuthResult,
   type BiometricPermissionResult,
   type BiometricAuthOptions,
+  type BiometricKeyResult,
+  type BiometricKeyExistsResult,
+  type BiometricSignatureResult,
   BiometricType,
   BiometricErrorCode,
+  BiometricOtherwayMode,
 } from './NativeBiometrics';
 
-export { BiometricType, BiometricErrorCode };
+export { BiometricType, BiometricErrorCode, BiometricOtherwayMode };
 export type {
   BiometricAvailability,
   BiometricAuthResult,
   BiometricPermissionResult,
   BiometricAuthOptions,
+  BiometricKeyResult,
+  BiometricKeyExistsResult,
+  BiometricSignatureResult,
 };
 
 /**
@@ -32,7 +39,6 @@ export class ReactNativeBiometrics {
         isAvailable: false,
         allowAccess: false,
         biometricType: BiometricType.NONE,
-        isLockout: false,
         errorCode: BiometricErrorCode.BIOMETRIC_UNKNOWN_ERROR,
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
       };
@@ -64,7 +70,7 @@ export class ReactNativeBiometrics {
     options?: BiometricAuthOptions
   ): Promise<BiometricAuthResult> {
     try {
-      return await NativeBiometrics.authenticateBiometric(options);
+      return await NativeBiometrics.authenticateBiometric(options ?? {}); // fallback for C++ in turbo module
     } catch (error) {
       return {
         success: false,
@@ -90,13 +96,76 @@ export class ReactNativeBiometrics {
     }
   }
 
+  // Private Key Management Methods
+
   /**
-   * @deprecated Use authenticateBiometric instead
+   * Create a new biometric private key
+   * Only one key per app is allowed for security
+   * @returns Promise<BiometricKeyResult>
    */
-  static async authenticate(
+  static async createBiometricKey(): Promise<BiometricKeyResult> {
+    try {
+      return await NativeBiometrics.createBiometricKey();
+    } catch (error) {
+      return {
+        success: false,
+        errorCode: BiometricErrorCode.BIOMETRIC_UNKNOWN_ERROR,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Check if biometric private key exists
+   * @returns Promise<BiometricKeyExistsResult>
+   */
+  static async biometricKeyExists(): Promise<BiometricKeyExistsResult> {
+    try {
+      return await NativeBiometrics.biometricKeyExists();
+    } catch (error) {
+      return {
+        exists: false,
+        errorCode: BiometricErrorCode.BIOMETRIC_UNKNOWN_ERROR,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Delete the biometric private key
+   * @returns Promise<BiometricKeyResult>
+   */
+  static async deleteBiometricKey(): Promise<BiometricKeyResult> {
+    try {
+      return await NativeBiometrics.deleteBiometricKey();
+    } catch (error) {
+      return {
+        success: false,
+        errorCode: BiometricErrorCode.BIOMETRIC_UNKNOWN_ERROR,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+
+  /**
+   * Create signature with biometric authentication
+   * @param payload - The data to sign (will be hashed internally)  
+   * @param options - Authentication options for prompt customization
+   * @returns Promise<BiometricSignatureResult>
+   */
+  static async createSignature(
+    payload: string,
     options?: BiometricAuthOptions
-  ): Promise<BiometricAuthResult> {
-    return this.authenticateBiometric(options);
+  ): Promise<BiometricSignatureResult> {
+    try {
+      return await NativeBiometrics.createSignature(payload, options);
+    } catch (error) {
+      return {
+        success: false,
+        errorCode: BiometricErrorCode.BIOMETRIC_UNKNOWN_ERROR,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
   }
 }
 

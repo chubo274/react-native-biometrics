@@ -22,11 +22,16 @@ export enum BiometricErrorCode {
   BIOMETRIC_UNKNOWN_ERROR = 'BIOMETRIC_UNKNOWN_ERROR',
 }
 
+export enum BiometricOtherwayMode {
+  HIDE = 'hide', // hide the other way option only on IOS
+  CALLBACK = 'callback', // callback return pressedOtherway = true to easy handle the case when user pressed other way
+  PIN = 'PIN', // use device PIN/passcode to authenticate
+}
+
 export interface BiometricAvailability {
   isAvailable: boolean;
   allowAccess: boolean;
   biometricType: BiometricType;
-  isLockout: boolean;
   errorCode?: BiometricErrorCode;
   errorMessage?: string;
 }
@@ -45,7 +50,28 @@ export interface BiometricPermissionResult {
 }
 
 export interface BiometricAuthOptions {
-  otherwayWithPIN?: boolean;
+  titlePrompt?: string;
+  otherwayWith?: BiometricOtherwayMode;
+  otherwayText?: string; // Only effective when otherwayWith = 'callback'
+}
+
+export interface BiometricKeyResult {
+  success: boolean;
+  errorCode?: BiometricErrorCode;
+  errorMessage?: string;
+}
+
+export interface BiometricKeyExistsResult {
+  exists: boolean;
+  errorCode?: BiometricErrorCode;
+  errorMessage?: string;
+}
+
+export interface BiometricSignatureResult {
+  success: boolean;
+  signature?: string; // Base64 encoded signature
+  errorCode?: BiometricErrorCode;
+  errorMessage?: string;
 }
 
 export interface Spec extends TurboModule {
@@ -62,6 +88,22 @@ export interface Spec extends TurboModule {
 
   // Authenticate using device PIN/passcode only
   authenticatePIN(): Promise<BiometricAuthResult>;
+
+  // Private Key Management Methods
+  // Create a new biometric private key (only one per app)
+  createBiometricKey(): Promise<BiometricKeyResult>;
+
+  // Check if biometric private key exists
+  biometricKeyExists(): Promise<BiometricKeyExistsResult>;
+
+  // Delete the biometric private key
+  deleteBiometricKey(): Promise<BiometricKeyResult>;
+
+  // Create signature with biometric authentication
+  createSignature(
+    payload: string,
+    options?: BiometricAuthOptions
+  ): Promise<BiometricSignatureResult>;
 }
 
 export default TurboModuleRegistry.getEnforcing<Spec>('Biometrics');

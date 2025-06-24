@@ -2,8 +2,9 @@
  * Sample React Native App
  */
 
+import React from 'react';
 import { View, Text, StyleSheet, Button, SafeAreaView } from 'react-native';
-import ReactNativeBiometrics from '@boindahood/react-native-biometrics';
+import ReactNativeBiometrics, { BiometricOtherwayMode } from '@boindahood/react-native-biometrics'
 
 function App() {
   console.log('App is starting...');
@@ -31,9 +32,7 @@ function App() {
   const authenticateBiometric = async () => {
     try {
       console.log('Testing authentication...');
-      const result = await ReactNativeBiometrics.authenticateBiometric({
-        otherwayWithPIN: false,
-      });
+      const result = await ReactNativeBiometrics.authenticateBiometric();
       console.log('Authentication result:', result);
     } catch (error) {
       console.error('Error during authentication:', error);
@@ -47,6 +46,51 @@ function App() {
       console.log('Authenticate with PIN result:', result);
     } catch (error) {
       console.error('Error authenticating with PIN:', error);
+    }
+  };
+
+  const createBiometricKey = async () => {
+    try {
+      console.log('Testing create biometric key...');
+      const result = await ReactNativeBiometrics.createBiometricKey();
+      console.log('Create biometric key result:', result);
+    } catch (error) {
+      console.error('Error creating biometric key:', error);
+    }
+  };
+
+  const createSignature = async () => {
+    try {
+      console.log('Testing create signature...');
+      const payload = 'Test payload for signature';
+      const result = await ReactNativeBiometrics.createSignature(payload, {
+        titlePrompt: 'Sign with your biometric',
+        otherwayText: 'Use PIN',
+        otherwayWith: BiometricOtherwayMode.HIDE
+      });
+      console.log('Create signature result:', result);
+    } catch (error) {
+      console.error('Error creating signature:', error);
+    }
+  };
+
+  const deleteBiometricKey = async () => {
+    try {
+      console.log('Testing delete biometric key...');
+      const result = await ReactNativeBiometrics.deleteBiometricKey();
+      console.log('Delete biometric key result:', result);
+    } catch (error) {
+      console.error('Error deleting biometric key:', error);
+    }
+  };
+
+  const biometricKeyExists = async () => {
+    try {
+      console.log('Testing check if biometric key exists...');
+      const result = await ReactNativeBiometrics.biometricKeyExists();
+      console.log('Biometric key exists result:', result);
+    } catch (error) {
+      console.error('Error checking biometric key exists:', error);
     }
   };
 
@@ -87,6 +131,40 @@ function App() {
             color="#4CAF50"
           />
         </View>
+
+        <View style={styles.separator} />
+
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Check Key Exists"
+            onPress={biometricKeyExists}
+            color="#9C27B0"
+          />
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Create Biometric Key"
+            onPress={createBiometricKey}
+            color="#607D8B"
+          />
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Create Signature"
+            onPress={createSignature}
+            color="#795548"
+          />
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Delete Biometric Key"
+            onPress={deleteBiometricKey}
+            color="#F44336"
+          />
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -121,6 +199,12 @@ const styles = StyleSheet.create({
   buttonContainer: {
     marginBottom: 15,
     width: '80%',
+  },
+  separator: {
+    height: 20,
+    width: 1000,
+    backgroundColor: '#666666',
+    marginBottom: 15,
   },
 });
 

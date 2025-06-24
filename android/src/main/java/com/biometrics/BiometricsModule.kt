@@ -2,6 +2,8 @@ package com.biometrics
 
 import android.content.pm.PackageManager
 import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyProperties
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -12,6 +14,11 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReadableMap
 import com.facebook.react.bridge.UiThreadUtil
 import com.facebook.react.module.annotations.ReactModule
+import java.security.KeyPairGenerator
+import java.security.KeyStore
+import java.security.Signature
+import java.security.spec.ECGenParameterSpec
+import android.util.Base64
 
 @ReactModule(name = BiometricsModule.NAME)
 class BiometricsModule(reactContext: ReactApplicationContext) :
@@ -23,70 +30,13 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
     return NAME
   }
 
-  // Helper method to convert BiometricPrompt error codes to our custom error codes
-  private fun convertBiometricErrorToErrorCode(errorCode: Int): String {
-    return when (errorCode) {
-      BiometricPrompt.ERROR_NO_BIOMETRICS -> "BIOMETRIC_NOT_ENROLLED"
-      BiometricPrompt.ERROR_HW_NOT_PRESENT -> "BIOMETRIC_NOT_AVAILABLE"
-      BiometricPrompt.ERROR_HW_UNAVAILABLE -> "BIOMETRIC_NOT_AVAILABLE"
-      BiometricPrompt.ERROR_LOCKOUT -> "BIOMETRIC_LOCKOUT"
-      BiometricPrompt.ERROR_LOCKOUT_PERMANENT -> "BIOMETRIC_LOCKOUT_PERMANENT"
-      BiometricPrompt.ERROR_USER_CANCELED -> "BIOMETRIC_USER_CANCEL"
-      BiometricPrompt.ERROR_CANCELED -> "BIOMETRIC_SYSTEM_CANCEL"
-      BiometricPrompt.ERROR_NO_SPACE -> "BIOMETRIC_NOT_AVAILABLE"
-      BiometricPrompt.ERROR_TIMEOUT -> "BIOMETRIC_AUTH_FAILED"
-      BiometricPrompt.ERROR_UNABLE_TO_PROCESS -> "BIOMETRIC_AUTH_FAILED"
-      BiometricPrompt.ERROR_VENDOR -> "BIOMETRIC_AUTH_FAILED"
-      BiometricPrompt.ERROR_NEGATIVE_BUTTON -> "BIOMETRIC_PRESSED_OTHER_WAY"
-      else -> "BIOMETRIC_UNKNOWN_ERROR"
-    }
-  }
-
-  // Helper method to get primary biometric type and preferred authenticator
-  private fun getBiometricTypeAndAuthenticator(): Pair<String, Int> {
-    val context = reactApplicationContext
-    val packageManager = context.packageManager
-    
-    // Check hardware capabilities
-    val hasFingerprint = packageManager.hasSystemFeature(PackageManager.FEATURE_FINGERPRINT)
-    val hasFace = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        packageManager.hasSystemFeature(PackageManager.FEATURE_FACE)
-    } else {
-        false
-    }
-    val hasIris = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        packageManager.hasSystemFeature(PackageManager.FEATURE_IRIS)
-    } else {
-        false
-    }
-    
-    // Check if any biometric hardware is available
-    val hasHardware = hasFingerprint || hasFace || hasIris
-    if (!hasHardware) {
-      return Pair("none", BiometricManager.Authenticators.BIOMETRIC_WEAK)
-    }
-    
-    // Priority: Fingerprint > Face > Iris (using BIOMETRIC_WEAK to avoid lockout)
-    return when {
-        hasFingerprint -> Pair("fingerprint", BiometricManager.Authenticators.BIOMETRIC_WEAK)
-        hasFace -> Pair("faceId", BiometricManager.Authenticators.BIOMETRIC_WEAK)
-        hasIris -> Pair("iris", BiometricManager.Authenticators.BIOMETRIC_WEAK)
-        else -> Pair("none", BiometricManager.Authenticators.BIOMETRIC_WEAK)
-    }
-  }
-
-  // Helper method to get primary biometric type (prioritize WEAK biometrics to avoid lockout)
-  private fun getPrimaryBiometricType(): String {
-    return getBiometricTypeAndAuthenticator().first
-  }
-
   override fun checkBiometricAvailability(promise: Promise) {
     try {
       val biometricManager = BiometricManager.from(reactApplicationContext)
       val result = Arguments.createMap()
       
       // Get biometric type and preferred authenticator
-      val (biometricType, preferredAuthenticator) = getBiometricTypeAndAuthenticator()
+      val (biometricType, preferredAuthenticator) = BiometricsHelper.getBiometricTypeAndAuthenticator(reactApplicationContext)
       val authResult = biometricManager.canAuthenticate(preferredAuthenticator)
       
       var isAvailable = false
@@ -135,10 +85,6 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
       result.putBoolean("allowAccess", allowAccess)
       result.putString("biometricType", biometricType)
       
-      // Check for lockout status
-      val isLockout = (authResult == BiometricManager.BIOMETRIC_ERROR_HW_UNAVAILABLE) // This can indicate temporary lockout
-      result.putBoolean("isLockout", isLockout)
-      
       // Only add error fields if there's an error
       if (errorCode != null) {
         result.putString("errorCode", errorCode)
@@ -165,7 +111,7 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
       val biometricManager = BiometricManager.from(reactApplicationContext)
       
       // Get biometric type and preferred authenticator for accurate checking
-      val (biometricType, preferredAuthenticator) = getBiometricTypeAndAuthenticator()
+      val (biometricType, preferredAuthenticator) = BiometricsHelper.getBiometricTypeAndAuthenticator(reactApplicationContext)
       
       // Check with the preferred authenticator for this biometric type
       when (biometricManager.canAuthenticate(preferredAuthenticator)) {
@@ -229,7 +175,7 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
 
     UiThreadUtil.runOnUiThread {
       try {
-        val currentActivity = currentActivity
+        val currentActivity = reactApplicationContext.currentActivity
         if (currentActivity == null || currentActivity !is FragmentActivity) {
           val result = Arguments.createMap()
           result.putBoolean("success", false)
@@ -240,17 +186,17 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
           return@runOnUiThread
         }
 
-        // Parse options
-        var otherwayWithPIN = false
+        // Parse options with new structure
+        val titlePrompt = options?.getString("titlePrompt") ?: "Biometric Authentication"
+        val otherwayWith = options?.getString("otherwayWith") ?: "PIN"  // Default to PIN mode on Android
+        val otherwayText = options?.getString("otherwayText") ?: "Another way"  // Fallback text for Android
         
-        if (options != null) {
-          if (options.hasKey("otherwayWithPIN") && !options.isNull("otherwayWithPIN")) {
-            otherwayWithPIN = options.getBoolean("otherwayWithPIN")
-          }
-        }
+        // Determine behavior based on otherwayWith
+        val showCallback = otherwayWith == "callback"
+        val showPIN = otherwayWith == "PIN"
 
         // Get biometric type and preferred authenticator
-        val (biometricType, preferredAuthenticator) = getBiometricTypeAndAuthenticator()
+        val (biometricType, preferredAuthenticator) = BiometricsHelper.getBiometricTypeAndAuthenticator(reactApplicationContext)
 
         val executor = ContextCompat.getMainExecutor(reactApplicationContext)
         val biometricPrompt = BiometricPrompt(currentActivity, executor,
@@ -262,12 +208,12 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
               val result = Arguments.createMap()
               result.putBoolean("success", false)
               
-              var customErrorCode = convertBiometricErrorToErrorCode(errorCode)
+              var customErrorCode = BiometricsHelper.convertBiometricErrorToErrorCode(errorCode)
               var pressedOtherway = false
               
-              // Handle "other way" button press (only when not using otherwayWithPIN)
+              // Handle "other way" button press
               if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
-                if (!otherwayWithPIN) {
+                if (showCallback) {
                   pressedOtherway = true
                   customErrorCode = "BIOMETRIC_PRESSED_OTHER_WAY"
                 }
@@ -302,19 +248,23 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
 
         // Build prompt info based on options
         val promptInfoBuilder = BiometricPrompt.PromptInfo.Builder()
-          .setTitle("Biometric Authentication")
-          .setSubtitle("Please authenticate to continue")
+          .setTitle(titlePrompt)
         
-        if (otherwayWithPIN) {
+        if (showPIN) {
           // Allow device credential fallback with preferred biometric authenticator
           promptInfoBuilder.setAllowedAuthenticators(
             preferredAuthenticator or BiometricManager.Authenticators.DEVICE_CREDENTIAL
           )
-        } else {
-          // Only biometric, with custom negative button text
+        } else if (showCallback) {
+          // Show negative button with custom text for callback
           promptInfoBuilder
             .setAllowedAuthenticators(preferredAuthenticator)
-            .setNegativeButtonText("Another Way")
+            .setNegativeButtonText(otherwayText)
+        } else {
+          // Default fallback for other modes (like HIDE which is iOS-only)
+          promptInfoBuilder
+            .setAllowedAuthenticators(preferredAuthenticator)
+            .setNegativeButtonText(otherwayText)
         }
 
         val promptInfo = promptInfoBuilder.build()
@@ -345,7 +295,7 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
 
     UiThreadUtil.runOnUiThread {
       try {
-        val currentActivity = currentActivity
+        val currentActivity = reactApplicationContext.currentActivity
         if (currentActivity == null || currentActivity !is FragmentActivity) {
           val result = Arguments.createMap()
           result.putBoolean("success", false)
@@ -366,7 +316,7 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
               val result = Arguments.createMap()
               result.putBoolean("success", false)
               
-              val customErrorCode = convertBiometricErrorToErrorCode(errorCode)
+              val customErrorCode = BiometricsHelper.convertBiometricErrorToErrorCode(errorCode)
               result.putString("errorCode", customErrorCode)
               result.putString("errorMessage", errString.toString())
               
@@ -406,6 +356,278 @@ class BiometricsModule(reactContext: ReactApplicationContext) :
         result.putString("errorMessage", e.message ?: "Unknown error")
         promise.resolve(result)
         isAuthenticating = false // Reset flag on exception
+      }
+    }
+  }
+
+  // MARK: - Private Key
+
+  private fun getBiometricKeyAlias(): String {
+    // Generate unique key alias based on package name to ensure one key per app
+    val packageName = reactApplicationContext.packageName
+    return "${packageName}.biometric.privatekey"
+  }
+
+  override fun createBiometricKey(promise: Promise) {
+    try {
+      val keyAlias = getBiometricKeyAlias()
+      val keyStore = KeyStore.getInstance("AndroidKeyStore")
+      keyStore.load(null)
+
+      // Check if key already exists
+      if (keyStore.containsAlias(keyAlias)) {
+        val result = Arguments.createMap()
+        result.putBoolean("success", false)
+        result.putString("errorCode", "BIOMETRIC_KEY_EXISTS")
+        result.putString("errorMessage", "Biometric key already exists. Delete existing key before creating a new one.")
+        promise.resolve(result)
+        return
+      }
+
+      // Create key generation parameters with biometric authentication requirement
+      val keyGenParameterSpec = KeyGenParameterSpec.Builder(
+        keyAlias,
+        KeyProperties.PURPOSE_SIGN
+      ).apply {
+        setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+        setDigests(KeyProperties.DIGEST_SHA256)
+        setUserAuthenticationRequired(true)
+        
+        // Require biometric authentication for key usage
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+          // Allow both biometric and device credential authentication
+          setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL)
+        } else {
+          @Suppress("DEPRECATION")
+          setUserAuthenticationValidityDurationSeconds(-1)
+        }
+        
+        setInvalidatedByBiometricEnrollment(true)
+      }.build()
+
+      // Generate the key pair
+      val keyPairGenerator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore")
+      keyPairGenerator.initialize(keyGenParameterSpec)
+      keyPairGenerator.generateKeyPair()
+
+      val result = Arguments.createMap()
+      result.putBoolean("success", true)
+      promise.resolve(result)
+
+    } catch (e: Exception) {
+      val result = Arguments.createMap()
+      result.putBoolean("success", false)
+      result.putString("errorCode", "BIOMETRIC_KEY_CREATION_FAILED")
+      result.putString("errorMessage", e.message ?: "Failed to create biometric key")
+      promise.resolve(result)
+    }
+  }
+
+  override fun biometricKeyExists(promise: Promise) {
+    try {
+      val keyAlias = getBiometricKeyAlias()
+      val keyStore = KeyStore.getInstance("AndroidKeyStore")
+      keyStore.load(null)
+
+      val result = Arguments.createMap()
+      result.putBoolean("exists", keyStore.containsAlias(keyAlias))
+      promise.resolve(result)
+
+    } catch (e: Exception) {
+      val result = Arguments.createMap()
+      result.putBoolean("exists", false)
+      result.putString("errorCode", "BIOMETRIC_KEY_CHECK_FAILED")
+      result.putString("errorMessage", e.message ?: "Failed to check if biometric key exists")
+      promise.resolve(result)
+    }
+  }
+
+  override fun deleteBiometricKey(promise: Promise) {
+    try {
+      val keyAlias = getBiometricKeyAlias()
+      val keyStore = KeyStore.getInstance("AndroidKeyStore")
+      keyStore.load(null)
+
+      if (keyStore.containsAlias(keyAlias)) {
+        keyStore.deleteEntry(keyAlias)
+      }
+
+      val result = Arguments.createMap()
+      result.putBoolean("success", true)
+      promise.resolve(result)
+
+    } catch (e: Exception) {
+      val result = Arguments.createMap()
+      result.putBoolean("success", false)
+      result.putString("errorCode", "BIOMETRIC_KEY_DELETION_FAILED")
+      result.putString("errorMessage", e.message ?: "Failed to delete biometric key")
+      promise.resolve(result)
+    }
+  }
+
+  override fun createSignature(payload: String, options: ReadableMap?, promise: Promise) {
+    if (isAuthenticating) {
+      val result = Arguments.createMap()
+      result.putBoolean("success", false)
+      result.putString("errorCode", "BIOMETRIC_AUTH_IN_PROGRESS")
+      result.putString("errorMessage", "Authentication already in progress")
+      promise.resolve(result)
+      return
+    }
+
+    UiThreadUtil.runOnUiThread {
+      try {
+        val keyAlias = getBiometricKeyAlias()
+        val keyStore = KeyStore.getInstance("AndroidKeyStore")
+        keyStore.load(null)
+
+        // Check if key not exists
+        if (!keyStore.containsAlias(keyAlias)) {
+          val result = Arguments.createMap()
+          result.putBoolean("success", false)
+          result.putString("errorCode", "BIOMETRIC_KEY_NOT_FOUND")
+          result.putString("errorMessage", "Biometric key not found. Create a key first.")
+          promise.resolve(result)
+          return@runOnUiThread
+        }
+
+        // Parse options for custom prompt
+        val titlePrompt = options?.getString("titlePrompt") ?: "Biometric Authentication"
+        val otherwayWith = options?.getString("otherwayWith") ?: "PIN"  // Default to PIN mode on Android
+        val otherwayText = options?.getString("otherwayText") ?: "Another way"  // Fallback text for Android
+
+        // Get the private key and create signature object
+        val privateKey = keyStore.getKey(keyAlias, null) as java.security.PrivateKey
+        val signature = Signature.getInstance("SHA256withECDSA")
+        // Important: Do NOT call signature.initSign() here - let BiometricPrompt handle it
+
+        // Create biometric prompt for signature
+        val activity = reactApplicationContext.currentActivity as? FragmentActivity
+        if (activity == null) {
+          val result = Arguments.createMap()
+          result.putBoolean("success", false)
+          result.putString("errorCode", "BIOMETRIC_NO_ACTIVITY")
+          result.putString("errorMessage", "No current activity available")
+          promise.resolve(result)
+          return@runOnUiThread
+        }
+
+        isAuthenticating = true
+
+        val executor = ContextCompat.getMainExecutor(reactApplicationContext)
+        val biometricPrompt = BiometricPrompt(activity, executor,
+          object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+              super.onAuthenticationError(errorCode, errString)
+              isAuthenticating = false
+              
+              val result = Arguments.createMap()
+              result.putBoolean("success", false)
+              result.putString("errorCode", BiometricsHelper.convertBiometricErrorToErrorCode(errorCode))
+              result.putString("errorMessage", errString.toString())
+              
+              // Handle otherwayWith callback option
+              if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON && otherwayWith == "callback") {
+                result.putBoolean("pressedOtherway", true)
+              }
+              
+              promise.resolve(result)
+            }
+
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+              super.onAuthenticationSucceeded(result)
+              isAuthenticating = false
+              
+              try {
+                // Get the authenticated signature from crypto object
+                val cryptoObject = result.cryptoObject
+                val authenticatedSignature = cryptoObject?.signature
+
+                if (authenticatedSignature != null) {
+                  // Now we can safely use the authenticated signature
+                  authenticatedSignature.update(payload.toByteArray())
+                  val signatureBytes = authenticatedSignature.sign()
+                  val base64Signature = Base64.encodeToString(signatureBytes, Base64.NO_WRAP)
+
+                  val resultMap = Arguments.createMap()
+                  resultMap.putBoolean("success", true)
+                  resultMap.putString("signature", base64Signature)
+                  promise.resolve(resultMap)
+                } else {
+                  val resultMap = Arguments.createMap()
+                  resultMap.putBoolean("success", false)
+                  resultMap.putString("errorCode", "BIOMETRIC_SIGNATURE_FAILED")
+                  resultMap.putString("errorMessage", "Failed to get authenticated signature - crypto object is null")
+                  promise.resolve(resultMap)
+                }
+              } catch (e: Exception) {
+                val resultMap = Arguments.createMap()
+                resultMap.putBoolean("success", false)
+                resultMap.putString("errorCode", "BIOMETRIC_SIGNATURE_FAILED")
+                resultMap.putString("errorMessage", e.message ?: "Failed to create signature")
+                promise.resolve(resultMap)
+              }
+            }
+
+            override fun onAuthenticationFailed() {
+              super.onAuthenticationFailed()
+              // Don't resolve promise here, wait for onAuthenticationError
+            }
+          })
+
+        val promptBuilder = BiometricPrompt.PromptInfo.Builder()
+          .setTitle(titlePrompt)
+          .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+
+        when (otherwayWith) {
+          "callback" -> {
+            // Show negative button, when pressed will call onAuthenticationError with ERROR_NEGATIVE_BUTTON
+            promptBuilder.setNegativeButtonText(otherwayText)
+          }
+          "PIN" -> {
+            // Allow both biometric and device credential (PIN/password/pattern)
+            // This works because we created the key to accept both auth methods
+            promptBuilder.setAllowedAuthenticators(
+              BiometricManager.Authenticators.BIOMETRIC_STRONG or 
+              BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+          }
+          else -> {
+            // Default to PIN mode for other modes (like HIDE which is iOS-only)
+            promptBuilder.setAllowedAuthenticators(
+              BiometricManager.Authenticators.BIOMETRIC_STRONG or 
+              BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            )
+          }
+        }
+
+        val promptInfo = promptBuilder.build()
+        
+        // Create crypto object with the signature - this is crucial for biometric key authentication
+        val cryptoObject = BiometricPrompt.CryptoObject(signature)
+        
+        // Initialize signature with private key through crypto object
+        try {
+          signature.initSign(privateKey)
+        } catch (e: Exception) {
+          isAuthenticating = false
+          val result = Arguments.createMap()
+          result.putBoolean("success", false)
+          result.putString("errorCode", "BIOMETRIC_SIGNATURE_FAILED")
+          result.putString("errorMessage", "Failed to initialize signature: ${e.message}")
+          promise.resolve(result)
+          return@runOnUiThread
+        }
+        
+        biometricPrompt.authenticate(promptInfo, cryptoObject)
+
+      } catch (e: Exception) {
+        isAuthenticating = false
+        val result = Arguments.createMap()
+        result.putBoolean("success", false)
+        result.putString("errorCode", "BIOMETRIC_SIGNATURE_FAILED")
+        result.putString("errorMessage", e.message ?: "Failed to create signature")
+        promise.resolve(result)
       }
     }
   }
