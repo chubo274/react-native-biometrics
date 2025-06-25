@@ -15,7 +15,7 @@ React Native biometric authentication with private key management. Create biomet
 ✅ **TypeScript** - Full type definitions included  
 ✅ **TurboModule** - Built for React Native's new architecture
 
-## 🎉 What's New in v1.0.4
+## 🎉 What's New
 
 ### Private Key Management
 - **Hardware-protected keys**: Create and manage biometric-protected private keys

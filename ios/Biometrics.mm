@@ -21,15 +21,38 @@ RCT_EXPORT_MODULE()
     LAContext *context = [[LAContext alloc] init];
     NSError *error = nil;
     
+    // Check if app can use biometric authentication (hardware + enrolled + permission)
     BOOL canEvaluate = [context canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&error];
+    
+    // Get biometric type from hardware (independent of permission/enrollment)
     NSString *biometricType = [BiometricsHelper getBiometricType];
     
-    // Check if biometrics are enrolled and available
-    BOOL isAvailable = canEvaluate && ![biometricType isEqualToString:@"none"];
-    
-    // iOS requires permission check through canEvaluatePolicy
-    // allowAccess is true if we can evaluate policy (permission granted)
+    // isAvailable = device has biometric hardware AND biometrics are enrolled
+    // We need to distinguish between "no hardware" vs "hardware but not enrolled"
+    BOOL hasHardware = ![biometricType isEqualToString:@"none"];
+    BOOL isEnrolled = NO;
     BOOL allowAccess = canEvaluate;
+    
+    if (hasHardware) {
+        if (canEvaluate) {
+            // Can evaluate = hardware + enrolled + permission
+            isEnrolled = YES;
+        } else if (error) {
+            // Check specific error to determine if biometric is enrolled
+            if (error.code == LAErrorBiometryNotEnrolled) {
+                isEnrolled = NO;
+            } else if (error.code == LAErrorPasscodeNotSet) {
+                // Device passcode not set, biometric may be enrolled but can't be used
+                isEnrolled = NO;
+            } else {
+                // Other errors might still indicate enrolled biometric (e.g., permission issues)
+                // Try a secondary check or assume enrolled if hardware exists
+                isEnrolled = YES;
+            }
+        }
+    }
+    
+    BOOL isAvailable = hasHardware && isEnrolled;
     
     NSMutableDictionary *result = [@{
         @"isAvailable": @(isAvailable),
@@ -37,11 +60,17 @@ RCT_EXPORT_MODULE()
         @"biometricType": biometricType
     } mutableCopy];
     
-    // Only add errorCode and errorMessage if there's an error
-    if (error) {
+    // Add error information for genuine issues (not permission/enrollment)
+    if (error && !hasHardware) {
+        // Only add error if device truly doesn't have biometric hardware
+        result[@"errorCode"] = [BiometricsHelper convertLAErrorToErrorCode:error.code];
+        result[@"errorMessage"] = error.localizedDescription;
+    } else if (error && hasHardware && !isEnrolled) {
+        // Device has hardware but biometric not enrolled
         result[@"errorCode"] = [BiometricsHelper convertLAErrorToErrorCode:error.code];
         result[@"errorMessage"] = error.localizedDescription;
     }
+    // If hasHardware && isEnrolled && !allowAccess, it's just permission issue - no error needed
     
     resolve(result);
 }
