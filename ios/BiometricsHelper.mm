@@ -32,15 +32,10 @@
 
 + (NSString *)getBiometricType {
     LAContext *context = [[LAContext alloc] init];
-    NSError *error = nil;
-    
-    BOOL canEvaluate = [context canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&error];
-    
-    if (!canEvaluate) {
-        return @"none";
-    }
     
     if (@available(iOS 11.0, *)) {
+        // On iOS 11+, we can check biometryType directly without evaluating policy
+        // This tells us what hardware is available regardless of permission
         switch (context.biometryType) {
             case LABiometryTypeFaceID:
                 return @"faceId";
@@ -52,8 +47,15 @@
                 return @"none";
         }
     } else {
-        // iOS < 11.0, assume Touch ID if available
-        return @"touchId";
+        // iOS < 11.0, need to check if device supports biometric authentication
+        NSError *error = nil;
+        BOOL canEvaluate = [context canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics error:&error];
+        
+        if (canEvaluate || (error && error.code != LAErrorBiometryNotAvailable)) {
+            // Device has Touch ID hardware (available or enrolled but permission denied)
+            return @"touchId";
+        }
+        return @"none";
     }
 }
 
